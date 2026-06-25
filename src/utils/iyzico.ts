@@ -39,7 +39,7 @@ export async function createCheckoutForm(requestData: any) {
   return response.json();
 }
 
-export async function retrieveCheckoutForm(requestData: { token: string }) {
+export async function retrieveCheckoutForm(requestData: { locale?: string, token: string }) {
   const uri = '/payment/iyzipos/checkoutform/auth/ecom/detail';
   console.log(`[IYZICO] RETRIEVE ATILAN BASE URL (Zorunlu Sandbox):`, BASE_URL);
   

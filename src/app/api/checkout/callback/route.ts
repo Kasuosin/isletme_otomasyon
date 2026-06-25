@@ -16,7 +16,10 @@ export async function POST(request: Request) {
     console.log(`[IYZICO CALLBACK] Token alındı: ${token}`);
 
     // Iyzico'dan işlemin sonucunu sorgula
-    const result = await retrieveCheckoutForm({ token: token.toString() });
+    const result = await retrieveCheckoutForm({ 
+        locale: 'tr',
+        token: token.toString() 
+    });
 
     console.log(`[IYZICO CALLBACK] Retrieve Sonucu:`, result);
 
@@ -25,11 +28,16 @@ export async function POST(request: Request) {
         // İyzico'da genel hata gösterilmemesi için yine de frontend'e yönlendirelim
     }
 
-    const orderId = result.conversationId;
+    const orderId = result.conversationId || result.basketId;
 
     if (!orderId) {
       console.error(`[IYZICO CALLBACK] Sipariş ID (conversationId) eksik! Result:`, result);
-      return NextResponse.json({ error: 'Sipariş ID bulunamadı.' }, { status: 400 });
+      // Hata detayını ekrana basalım ki ne döndüğünü görebilelim
+      return NextResponse.json({ 
+          error: 'Sipariş ID bulunamadı.',
+          message: result.errorMessage || 'Iyzico response missing order ID',
+          iyzico_result: result 
+      }, { status: 400 });
     }
 
     const supabase = await createClient();
