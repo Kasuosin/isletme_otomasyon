@@ -29,6 +29,7 @@ const originalReaddirSync = fs.readdirSync;
 export async function POST(request: Request) {
   try {
     // 2. Dinamik olarak yükle (Monkey patch devreye girdikten SONRA)
+    // @ts-ignore
     const Iyzipay = (await import('iyzipay')).default || require('iyzipay');
     const iyzipay = new Iyzipay({
       apiKey: process.env.NEXT_PUBLIC_IYZICO_API_KEY,
