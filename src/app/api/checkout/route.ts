@@ -141,12 +141,12 @@ export async function POST(request: Request) {
         // Iyzico Sandbox bug fix: Eğer Iyzico canlı script'ini gönderiyorsa sandbox ile değiştir!
         let htmlContent = result.checkoutFormContent;
         if (htmlContent) {
-            htmlContent = htmlContent.replace(/static\.iyzipay\.com/g, 'sandbox-static.iyzipay.com');
+            htmlContent = htmlContent.replace(/(?<!sandbox-)static\.iyzipay\.com/g, 'sandbox-static.iyzipay.com');
         }
 
         let paymentUrl = result.paymentPageUrl;
         if (paymentUrl) {
-            paymentUrl = paymentUrl.replace(/static\.iyzipay\.com/g, 'sandbox-static.iyzipay.com');
+            paymentUrl = paymentUrl.replace(/(?<!sandbox-)static\.iyzipay\.com/g, 'sandbox-static.iyzipay.com');
             paymentUrl = paymentUrl + '&iframe=false';
         }
 
