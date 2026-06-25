@@ -29,6 +29,8 @@ function generateHttpHeaders(uri: string, body: any) {
 
 export async function createCheckoutForm(requestData: any) {
   const uri = '/payment/iyzipos/checkoutform/initialize/auth/ecom';
+  console.log(`[IYZICO] İSTEK ATILAN BASE URL (Zorunlu Sandbox):`, BASE_URL);
+  
   const response = await fetch(BASE_URL + uri, {
     method: 'POST',
     headers: generateHttpHeaders(uri, requestData),
@@ -39,6 +41,8 @@ export async function createCheckoutForm(requestData: any) {
 
 export async function retrieveCheckoutForm(requestData: { token: string }) {
   const uri = '/payment/iyzipos/checkoutform/auth/ecom/detail';
+  console.log(`[IYZICO] RETRIEVE ATILAN BASE URL (Zorunlu Sandbox):`, BASE_URL);
+  
   const response = await fetch(BASE_URL + uri, {
     method: 'POST',
     headers: generateHttpHeaders(uri, requestData),
