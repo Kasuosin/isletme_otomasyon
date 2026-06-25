@@ -1,35 +1,48 @@
-import fs from 'fs';
+import crypto from 'crypto';
 
-// Monkey-patch fs.readdirSync to bypass Vercel Next.js / iyzipay scandir issues
-const originalReaddirSync = fs.readdirSync;
-(fs as any).readdirSync = function (path: string | Buffer | URL, options?: any) {
-  const pathStr = String(path).replace(/\\/g, '/');
-  if (pathStr.includes('iyzipay') && pathStr.includes('resources')) {
-    return [
-      "ApiTest.js", "Apm.js", "Approval.js", "BasicBkm.js", "BasicBkmInitialize.js", "BasicPayment.js",
-      "BasicPaymentPostAuth.js", "BasicPaymentPreAuth.js", "BasicThreedsInitialize.js", "BasicThreedsInitializePreAuth.js",
-      "BasicThreedsPayment.js", "BinNumber.js", "Bkm.js", "BkmInitialize.js", "BouncedBankTransferList.js", "Cancel.js",
-      "Card.js", "CardList.js", "CheckoutForm.js", "CheckoutFormInitialize.js", "CheckoutFormInitializePreAuth.js",
-      "CrossBookingFromSubMerchant.js", "CrossBookingToSubMerchant.js", "Disapproval.js", "InstallmentHtml.js",
-      "InstallmentInfo.js", "IyziLink.js", "PayWithIyzico.js", "Payment.js", "PaymentItem.js", "PaymentPostAuth.js",
-      "PaymentPreAuth.js", "PayoutCompletedTransactionList.js", "PeccoInitialize.js", "PeccoPayment.js", "Refund.js",
-      "RefundChargedFromMerchant.js", "RefundToBalance.js", "RefundV2.js", "ReportingBouncedPayments.js",
-      "ReportingPayoutCompleted.js", "ReportingScrollTransactions.js", "ReportingTransactionDetails.js",
-      "ReportingTransactions.js", "SettlementToBalance.js", "SubMerchant.js", "Subscription.js", "SubscriptionCard.js",
-      "SubscriptionCheckoutForm.js", "SubscriptionCustomer.js", "SubscriptionExistingCustomer.js", "SubscriptionPayment.js",
-      "SubscriptionPricingPlan.js", "SubscriptionProduct.js", "ThreedsInitialize.js", "ThreedsInitializePreAuth.js",
-      "ThreedsPayment.js", "ThreedsV2Payment.js", "UniversalCardStorageInitialize.js"
-    ] as any;
-  }
-  return originalReaddirSync.call(fs, path, options);
-};
+const API_KEY = process.env.NEXT_PUBLIC_IYZICO_API_KEY || '';
+const SECRET_KEY = process.env.NEXT_PUBLIC_IYZICO_SECRET_KEY || '';
+const BASE_URL = 'https://sandbox-api.iyzipay.com';
 
-const Iyzipay = require('iyzipay');
+function generateHttpHeaders(uri: string, body: any) {
+  const randomString = process.hrtime()[0] + Math.random().toString(8).slice(2);
+  const signature = crypto
+    .createHmac('sha256', SECRET_KEY)
+    .update(randomString + uri + JSON.stringify(body))
+    .digest('hex');
 
-const iyzipay = new Iyzipay({
-  apiKey: process.env.NEXT_PUBLIC_IYZICO_API_KEY,
-  secretKey: process.env.NEXT_PUBLIC_IYZICO_SECRET_KEY,
-  uri: 'https://sandbox-api.iyzipay.com'
-});
+  const authorizationParams = [
+    'apiKey:' + API_KEY,
+    'randomKey:' + randomString,
+    'signature:' + signature
+  ];
+  
+  const base64Auth = Buffer.from(authorizationParams.join('&')).toString('base64');
+  
+  return {
+    'Authorization': 'IYZWSv2 ' + base64Auth,
+    'x-iyzi-rnd': randomString,
+    'x-iyzi-client-version': 'iyzipay-node-2.0.69',
+    'Content-Type': 'application/json'
+  };
+}
 
-export default iyzipay;
+export async function createCheckoutForm(requestData: any) {
+  const uri = '/payment/iyzipos/checkoutform/initialize/auth/ecom';
+  const response = await fetch(BASE_URL + uri, {
+    method: 'POST',
+    headers: generateHttpHeaders(uri, requestData),
+    body: JSON.stringify(requestData)
+  });
+  return response.json();
+}
+
+export async function retrieveCheckoutForm(requestData: { token: string }) {
+  const uri = '/payment/iyzipos/checkoutform/auth/ecom/detail';
+  const response = await fetch(BASE_URL + uri, {
+    method: 'POST',
+    headers: generateHttpHeaders(uri, requestData),
+    body: JSON.stringify(requestData)
+  });
+  return response.json();
+}

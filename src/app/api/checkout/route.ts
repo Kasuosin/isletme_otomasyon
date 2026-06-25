@@ -1,42 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import fs from 'fs';
-
-// 1. Monkey-patch fs.readdirSync (Next.js Turbopack bypass)
-const originalReaddirSync = fs.readdirSync;
-(fs as any).readdirSync = function (path: string | Buffer | URL, options?: any) {
-  const pathStr = String(path).replace(/\\/g, '/');
-  if (pathStr.includes('iyzipay') && pathStr.includes('resources')) {
-    return [
-      "ApiTest.js", "Apm.js", "Approval.js", "BasicBkm.js", "BasicBkmInitialize.js", "BasicPayment.js",
-      "BasicPaymentPostAuth.js", "BasicPaymentPreAuth.js", "BasicThreedsInitialize.js", "BasicThreedsInitializePreAuth.js",
-      "BasicThreedsPayment.js", "BinNumber.js", "Bkm.js", "BkmInitialize.js", "BouncedBankTransferList.js", "Cancel.js",
-      "Card.js", "CardList.js", "CheckoutForm.js", "CheckoutFormInitialize.js", "CheckoutFormInitializePreAuth.js",
-      "CrossBookingFromSubMerchant.js", "CrossBookingToSubMerchant.js", "Disapproval.js", "InstallmentHtml.js",
-      "InstallmentInfo.js", "IyziLink.js", "PayWithIyzico.js", "Payment.js", "PaymentItem.js", "PaymentPostAuth.js",
-      "PaymentPreAuth.js", "PayoutCompletedTransactionList.js", "PeccoInitialize.js", "PeccoPayment.js", "Refund.js",
-      "RefundChargedFromMerchant.js", "RefundToBalance.js", "RefundV2.js", "ReportingBouncedPayments.js",
-      "ReportingPayoutCompleted.js", "ReportingScrollTransactions.js", "ReportingTransactionDetails.js",
-      "ReportingTransactions.js", "SettlementToBalance.js", "SubMerchant.js", "Subscription.js", "SubscriptionCard.js",
-      "SubscriptionCheckoutForm.js", "SubscriptionCustomer.js", "SubscriptionExistingCustomer.js", "SubscriptionPayment.js",
-      "SubscriptionPricingPlan.js", "SubscriptionProduct.js", "ThreedsInitialize.js", "ThreedsInitializePreAuth.js",
-      "ThreedsPayment.js", "ThreedsV2Payment.js", "UniversalCardStorageInitialize.js"
-    ] as any;
-  }
-  return originalReaddirSync.call(fs, path, options);
-};
+import { createCheckoutForm } from '@/utils/iyzico';
 
 export async function POST(request: Request) {
   try {
-    // 2. Dinamik olarak yükle (Monkey patch devreye girdikten SONRA)
-    // @ts-ignore
-    const Iyzipay = (await import('iyzipay')).default || require('iyzipay');
-    const iyzipay = new Iyzipay({
-      apiKey: process.env.NEXT_PUBLIC_IYZICO_API_KEY,
-      secretKey: process.env.NEXT_PUBLIC_IYZICO_SECRET_KEY,
-      uri: 'https://sandbox-api.iyzipay.com'
-    });
-
     const body = await request.json();
     const { table_no, amount, cart } = body;
 
@@ -161,27 +128,19 @@ export async function POST(request: Request) {
     };
 
     // Iyzico'dan Form Başlatma İsteği At
-    return new Promise<NextResponse>((resolve) => {
-        iyzipay.checkoutFormInitialize.create(requestData, (err: any, result: any) => {
-            if (err) {
-                console.error("Iyzico Error:", err);
-                resolve(NextResponse.json({ error: 'Ödeme formu başlatılamadı.' }, { status: 500 }));
-                return;
-            }
-            
-            if (result.status === 'success') {
-                console.log("[IYZICO] Form başlatıldı. URL:", result.paymentPageUrl);
-                resolve(NextResponse.json({
-                    success: true,
-                    paymentPageUrl: result.paymentPageUrl + '&iframe=false',
-                    token: result.token
-                }, { status: 200 }));
-            } else {
-                console.error("[IYZICO] Form Hatası:", result);
-                resolve(NextResponse.json({ error: result.errorMessage }, { status: 400 }));
-            }
-        });
-    });
+    const result = await createCheckoutForm(requestData);
+
+    if (result.status === 'success') {
+        console.log("[IYZICO] Form başlatıldı. URL:", result.paymentPageUrl);
+        return NextResponse.json({
+            success: true,
+            paymentPageUrl: result.paymentPageUrl + '&iframe=false',
+            token: result.token
+        }, { status: 200 });
+    } else {
+        console.error("[IYZICO] Form Hatası:", result);
+        return NextResponse.json({ error: result.errorMessage || 'Ödeme formu başlatılamadı.' }, { status: 400 });
+    }
 
   } catch (error) {
     console.error('API Error:', error);
