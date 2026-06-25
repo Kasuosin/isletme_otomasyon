@@ -18,9 +18,17 @@ export async function POST(request: Request) {
     // Iyzico'dan işlemin sonucunu sorgula
     const result = await retrieveCheckoutForm({ token: token.toString() });
 
+    console.log(`[IYZICO CALLBACK] Retrieve Sonucu:`, result);
+
+    if (result.status !== 'success') {
+        console.error(`[IYZICO CALLBACK] Retrieve Başarısız! Hata:`, result.errorMessage);
+        // İyzico'da genel hata gösterilmemesi için yine de frontend'e yönlendirelim
+    }
+
     const orderId = result.conversationId;
 
     if (!orderId) {
+      console.error(`[IYZICO CALLBACK] Sipariş ID (conversationId) eksik! Result:`, result);
       return NextResponse.json({ error: 'Sipariş ID bulunamadı.' }, { status: 400 });
     }
 

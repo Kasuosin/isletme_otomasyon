@@ -13,10 +13,15 @@ export async function POST(request: Request) {
 
     // Canlı domain (Vercel vb.) veya tünel URL'sini al, yoksa origin'e dön.
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL 
-      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : request.headers.get('origin')) 
-      || 'http://localhost:3000';
+      || request.headers.get('origin') 
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
       
     const callbackUrl = `${baseUrl}/api/checkout/callback`;
+
+    // Kullanıcı IP'sini al
+    let userIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '85.34.78.112';
+    userIp = userIp.split(',')[0].trim();
+    if (userIp === '::1' || userIp === '127.0.0.1') userIp = '85.34.78.112';
 
     const supabase = await createClient();
 
@@ -101,11 +106,11 @@ export async function POST(request: Request) {
             surname: table_no,
             gsmNumber: '+905320000000',
             email: 'email@email.com',
-            identityNumber: '74300864791',
+            identityNumber: '11111111111', // Test TC
             lastLoginDate: '2015-10-05 12:43:35',
             registrationDate: '2013-04-21 15:12:09',
             registrationAddress: 'Nidakule Goztepe, Merdivenkoy Mah. Bora Sok. No:1',
-            ip: '85.34.78.112', // Localhost IP'leri Iyzico tarafından reddedilebilir, sabit public IP!
+            ip: userIp, 
             city: 'Istanbul',
             country: 'Turkey',
             zipCode: '34732'
