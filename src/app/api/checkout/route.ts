@@ -136,10 +136,24 @@ export async function POST(request: Request) {
     const result = await createCheckoutForm(requestData);
 
     if (result.status === 'success') {
-        console.log("[IYZICO] Form başlatıldı. URL:", result.paymentPageUrl);
+        console.log("[IYZICO] Form başlatıldı. Orijinal Response:", result);
+        
+        // Iyzico Sandbox bug fix: Eğer Iyzico canlı script'ini gönderiyorsa sandbox ile değiştir!
+        let htmlContent = result.checkoutFormContent;
+        if (htmlContent) {
+            htmlContent = htmlContent.replace(/static\.iyzipay\.com/g, 'sandbox-static.iyzipay.com');
+        }
+
+        let paymentUrl = result.paymentPageUrl;
+        if (paymentUrl) {
+            paymentUrl = paymentUrl.replace(/static\.iyzipay\.com/g, 'sandbox-static.iyzipay.com');
+            paymentUrl = paymentUrl + '&iframe=false';
+        }
+
         return NextResponse.json({
             success: true,
-            paymentPageUrl: result.paymentPageUrl + '&iframe=false',
+            checkoutFormContent: htmlContent,
+            paymentPageUrl: paymentUrl,
             token: result.token
         }, { status: 200 });
     } else {

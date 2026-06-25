@@ -172,9 +172,32 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
 
       const data = await response.json();
       
-      if (response.ok && data.success && data.paymentPageUrl) {
-        // Gerçek iyzico ödeme sayfasına yönlendir
-        window.location.href = data.paymentPageUrl;
+      if (response.ok && data.success) {
+        if (data.checkoutFormContent) {
+          // Iyzico'nun döndüğü (ve bizim backend'de sandbox script'i ile değiştirdiğimiz) HTML'i doğrudan render et
+          const newDoc = document.open();
+          newDoc.write(`
+            <html>
+              <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <style>body { background-color: #fdfaf5; margin: 0; padding: 10px; display: flex; justify-content: center; }</style>
+              </head>
+              <body>
+                <div style="width: 100%; max-width: 600px;">
+                  ${data.checkoutFormContent}
+                  <div id="iyzipay-checkout-form" class="responsive"></div>
+                </div>
+              </body>
+            </html>
+          `);
+          newDoc.close();
+        } else if (data.paymentPageUrl) {
+          // Eğer HTML yoksa mecbur URL'ye yönlendir
+          window.location.href = data.paymentPageUrl;
+        } else {
+          alert('Ödeme sayfası bilgisi alınamadı.');
+          setShowIyzicoModal(false);
+        }
       } else {
         alert(`Ödeme başlatılamadı: ${data.error}`);
         setShowIyzicoModal(false);
