@@ -65,8 +65,7 @@ export async function POST(request: Request) {
       order_id: currentOrderId,
       menu_item_id: item.id,
       quantity: item.quantity,
-      price_at_time: item.price,
-      status: 'pending'
+      price_at_time: item.price
     }));
     await supabase.from('order_items').insert(orderItemsToInsert);
     if (tableId) {
