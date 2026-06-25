@@ -27,7 +27,7 @@ export default function KitchenPanelScreen({ navigation }: any) {
     fetchMenuItems();
 
     let channel: any = null;
-    let reconnectTimer: NodeJS.Timeout;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
 
     const setupRealtime = () => {
       if (channel) {

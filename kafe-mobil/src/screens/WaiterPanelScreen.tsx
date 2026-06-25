@@ -71,7 +71,7 @@ export default function WaiterPanelScreen({ navigation }: any) {
     fetchMenuData();
 
     let channel: any = null;
-    let reconnectTimer: NodeJS.Timeout;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
 
     const setupRealtime = () => {
       if (channel) {

@@ -16,7 +16,7 @@ export default function AdminPanelScreen({ navigation }: any) {
     fetchData();
 
     let channel: any = null;
-    let reconnectTimer: NodeJS.Timeout;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
 
     const setupRealtime = () => {
       if (channel) {

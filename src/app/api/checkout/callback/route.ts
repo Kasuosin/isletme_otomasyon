@@ -6,7 +6,8 @@ export async function POST(request: Request) {
   try {
     // Iyzico POST isteğini form data olarak gönderir
     const formData = await request.formData();
-    const token = formData.get('token');
+    // formData.get returns FormDataEntryValue | null, we cast to string
+    const token = (formData as any).get('token') as string | null;
 
     if (!token) {
       return NextResponse.json({ error: 'Token bulunamadı' }, { status: 400 });
@@ -15,7 +16,7 @@ export async function POST(request: Request) {
     console.log(`[IYZICO CALLBACK] Token alındı: ${token}`);
 
     // Iyzico'dan işlemin sonucunu sorgula
-    return new Promise((resolve) => {
+    return new Promise<NextResponse>((resolve) => {
       iyzipay.checkoutForm.retrieve({ token: token.toString() }, async (err: any, result: any) => {
         if (err) {
           console.error("Iyzico Retrieve Error:", err);

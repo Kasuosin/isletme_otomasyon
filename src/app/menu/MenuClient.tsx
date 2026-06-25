@@ -119,7 +119,7 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
       } else {
         // Update existing order total_amount
         await supabase.from('orders').update({
-          total_amount: activeOrder.total_amount + totalAmount
+          total_amount: (activeOrder?.total_amount || 0) + totalAmount
         }).eq('id', currentOrderId);
       }
 

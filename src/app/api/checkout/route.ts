@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       if (orderError) throw orderError;
       currentOrderId = newOrder.id;
     } else {
-      const newTotal = Number(activeOrder.total_amount) + Number(amount);
+      const newTotal = Number(activeOrder?.total_amount || 0) + Number(amount);
       await supabase.from('orders').update({
         total_amount: newTotal,
         payment_method: 'qr_pay'
@@ -129,7 +129,7 @@ export async function POST(request: Request) {
     };
 
     // Iyzico'dan Form Başlatma İsteği At
-    return new Promise((resolve) => {
+    return new Promise<NextResponse>((resolve) => {
         iyzipay.checkoutFormInitialize.create(requestData, (err: any, result: any) => {
             if (err) {
                 console.error("Iyzico Error:", err);
