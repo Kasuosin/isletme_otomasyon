@@ -174,25 +174,36 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
       
       if (response.ok && data.success) {
         if (data.checkoutFormContent) {
-          // Iyzico'nun döndüğü (ve bizim backend'de sandbox script'i ile değiştirdiğimiz) HTML'i doğrudan render et
-          const newDoc = document.open();
-          newDoc.write(`
-            <html>
-              <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <style>body { background-color: #fdfaf5; margin: 0; padding: 10px; display: flex; justify-content: center; }</style>
-              </head>
-              <body>
-                <div style="width: 100%; max-width: 600px;">
-                  ${data.checkoutFormContent}
-                  <div id="iyzipay-checkout-form" class="responsive"></div>
-                </div>
-              </body>
-            </html>
-          `);
-          newDoc.close();
+          // document.write kullanmadan, script'i manuel olarak çalıştıracağız
+          // 1. Script tag'ini HTML'den ayıkla
+          const scriptRegex = /<script\b[^>]*src="([^"]+)"[^>]*><\/script>/i;
+          const match = data.checkoutFormContent.match(scriptRegex);
+          const htmlWithoutScript = data.checkoutFormContent.replace(scriptRegex, '');
+          
+          // 2. HTML'i modal içerisine yerleştirmek için state'e kaydet veya direkt iyzico elementini ekle
+          // iyzicoStep'i 'form' olarak bırakıyoruz ki modal açık kalsın ve HTML oraya yerleşebilsin.
+          setIyzicoStep('form');
+          
+          // Mevcut modalın içine iyzico div'ini yerleştiriyoruz. Form'u gösterecek bir div eklemeliyiz.
+          // Modal yapısını değiştirmemek için bir setTimeout ile modalin açılmasını bekleyip içeriği enjekte edebiliriz, 
+          // veya daha güvenlisi modal içeriğini doğrudan state'ten okuyabiliriz.
+          
+          // Geçici bir çözüm olarak, güvenli bir şekilde div içine ekleyelim:
+          setTimeout(() => {
+            const container = document.getElementById('iyzico-form-container');
+            if (container) {
+              container.innerHTML = htmlWithoutScript + '<div id="iyzipay-checkout-form" class="responsive"></div>';
+              
+              if (match && match[1]) {
+                const script = document.createElement('script');
+                script.src = match[1];
+                script.async = true;
+                document.body.appendChild(script);
+              }
+            }
+          }, 100);
+
         } else if (data.paymentPageUrl) {
-          // Eğer HTML yoksa mecbur URL'ye yönlendir
           window.location.href = data.paymentPageUrl;
         } else {
           alert('Ödeme sayfası bilgisi alınamadı.');
@@ -445,6 +456,12 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
             </div>
 
             <div className="p-6">
+              {iyzicoStep === 'form' && (
+                <div id="iyzico-form-container" className="w-full flex justify-center items-center min-h-[300px]">
+                  {/* Script and form will be injected here */}
+                </div>
+              )}
+
               {iyzicoStep === 'processing' && (
                 <div className="py-12 flex flex-col items-center justify-center animate-in zoom-in text-center">
                   <div className="w-16 h-16 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
