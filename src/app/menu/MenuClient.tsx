@@ -174,34 +174,70 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
       
       if (response.ok && data.success) {
         if (data.checkoutFormContent) {
-          // document.write kullanmadan, script'i manuel olarak çalıştıracağız
-          // 1. Script tag'ini HTML'den ayıkla
-          const scriptRegex = /<script\b[^>]*src="([^"]+)"[^>]*><\/script>/i;
-          const match = data.checkoutFormContent.match(scriptRegex);
-          const htmlWithoutScript = data.checkoutFormContent.replace(scriptRegex, '');
-          
-          // 2. HTML'i modal içerisine yerleştirmek için state'e kaydet veya direkt iyzico elementini ekle
-          // iyzicoStep'i 'form' olarak bırakıyoruz ki modal açık kalsın ve HTML oraya yerleşebilsin.
+          // iyzicoStep'i 'form' olarak ayarla ki modal div'i render etsin
           setIyzicoStep('form');
           
-          // Mevcut modalın içine iyzico div'ini yerleştiriyoruz. Form'u gösterecek bir div eklemeliyiz.
-          // Modal yapısını değiştirmemek için bir setTimeout ile modalin açılmasını bekleyip içeriği enjekte edebiliriz, 
-          // veya daha güvenlisi modal içeriğini doğrudan state'ten okuyabiliriz.
-          
-          // Geçici bir çözüm olarak, güvenli bir şekilde div içine ekleyelim:
           setTimeout(() => {
             const container = document.getElementById('iyzico-form-container');
             if (container) {
-              container.innerHTML = htmlWithoutScript + '<div id="iyzipay-checkout-form" class="responsive"></div>';
+              // 1. Önce gelen HTML'i (scriptler hariç çalışmasa da) DOM'a güvenle yerleştiriyoruz.
+              container.innerHTML = data.checkoutFormContent;
               
-              if (match && match[1]) {
-                const script = document.createElement('script');
-                script.src = match[1];
-                script.async = true;
-                document.body.appendChild(script);
+              // Eğer Iyzico div'i eksikse (bazen HTML içinde gelmez) manuel ekleyelim.
+              if (!container.querySelector('#iyzipay-checkout-form')) {
+                const formDiv = document.createElement('div');
+                formDiv.id = 'iyzipay-checkout-form';
+                formDiv.className = 'responsive';
+                container.appendChild(formDiv);
+              }
+
+              // 2. innerHTML ile eklenen scriptler çalışmaz. Onları bulup manuel tetiklemeliyiz.
+              const oldScripts = container.querySelectorAll('script');
+              let externalScript: HTMLScriptElement | null = null;
+              const inlineScripts: HTMLScriptElement[] = [];
+
+              oldScripts.forEach(oldScript => {
+                if (oldScript.src) {
+                  externalScript = oldScript;
+                } else {
+                  inlineScripts.push(oldScript);
+                }
+                // Çalışmayan eski scriptleri DOM'dan temizle
+                oldScript.remove();
+              });
+
+              // 3. Inline scriptleri çalıştıracak yardımcı fonksiyon
+              const runInlineScripts = () => {
+                inlineScripts.forEach(inline => {
+                  const newInl = document.createElement('script');
+                  newInl.innerHTML = inline.innerHTML;
+                  document.body.appendChild(newInl);
+                });
+              };
+
+              // 4. External script varsa önce onu yükle (onload), sonra inline'ları tetikle
+              if (externalScript) {
+                const newExt = document.createElement('script');
+                newExt.src = (externalScript as HTMLScriptElement).src;
+                newExt.async = false; // Sırayı korumak için async kapatılabilir
+                newExt.defer = true;
+                
+                newExt.onload = () => {
+                  console.log('[IYZICO] Harici script yüklendi, başlatılıyor...');
+                  runInlineScripts();
+                };
+                
+                newExt.onerror = () => {
+                  console.error('[IYZICO] Harici script yüklenemedi!');
+                };
+
+                document.body.appendChild(newExt);
+              } else {
+                // Sadece inline script varsa direkt çalıştır
+                runInlineScripts();
               }
             }
-          }, 100);
+          }, 150);
 
         } else if (data.paymentPageUrl) {
           window.location.href = data.paymentPageUrl;
