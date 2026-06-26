@@ -27,7 +27,13 @@ export default function RoleSelectionScreen({ navigation }: any) {
         <TouchableOpacity style={[styles.card, styles.waiterCard]} onPress={() => navigation.navigate('WaiterPanel')}>
           <Text style={styles.emoji}>🤵</Text>
           <Text style={styles.cardTitle}>Garson Paneli</Text>
-          <Text style={styles.cardDesc}>Masalar, Siparişler, Hesap ve Operasyon Yönetimi</Text>
+          <Text style={styles.cardDesc}>Masalar, Siparişler ve Operasyon Yönetimi</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.card, styles.cashierCard]} onPress={() => navigation.navigate('CashierPanel')}>
+          <Text style={styles.emoji}>💰</Text>
+          <Text style={styles.cardTitle}>Kasa Paneli</Text>
+          <Text style={styles.cardDesc}>Hesap Tahsilatı, İskonto ve Adisyon İşlemleri</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.card, styles.kitchenCard]} onPress={() => navigation.navigate('KitchenPanel')}>
@@ -97,6 +103,7 @@ const styles = StyleSheet.create({
     elevation: 4 
   },
   waiterCard: { borderColor: '#c7d2fe' },
+  cashierCard: { borderColor: '#a7f3d0' },
   kitchenCard: { borderColor: '#fed7aa' },
   adminCard: { borderColor: '#cbd5e1' },
   emoji: { fontSize: 64, marginBottom: 20 },

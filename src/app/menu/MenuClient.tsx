@@ -9,7 +9,7 @@ type Category = { id: string; name: string; sort_order: number };
 type MenuItem = { id: string; category_id: string; name: string; description: string; price: number; image_url: string; is_available: boolean };
 type CartItem = MenuItem & { quantity: number };
 
-export default function MenuClient({ categories, menuItems }: { categories: Category[], menuItems: MenuItem[] }) {
+export default function MenuClient({ categories, menuItems, restaurantId }: { categories: Category[], menuItems: MenuItem[], restaurantId: string }) {
   const searchParams = useSearchParams();
   const tableNo = searchParams.get('table');
   const paymentStatus = searchParams.get('payment');
@@ -109,6 +109,7 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
       if (!currentOrderId) {
         // Create new order
         const { data: newOrder, error: orderError } = await supabase.from('orders').insert({
+          restaurant_id: restaurantId,
           table_no: tableNo,
           status: 'pending',
           total_amount: totalAmount,

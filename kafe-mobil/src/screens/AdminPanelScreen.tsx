@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Platform, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 
 const { width } = Dimensions.get('window');
@@ -8,11 +9,26 @@ const { width } = Dimensions.get('window');
 type FilterType = 'today' | '7days' | 'all';
 
 export default function AdminPanelScreen({ navigation }: any) {
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [filter, setFilter] = useState<FilterType>('7days');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const loadRestaurantId = async () => {
+      const id = await AsyncStorage.getItem('restaurant_id');
+      if (id) {
+        setRestaurantId(id);
+      } else {
+        Alert.alert('Hata', 'Restoran bilgisi bulunamadı. Lütfen tekrar giriş yapın.');
+      }
+    };
+    loadRestaurantId();
+  }, []);
+
+  useEffect(() => {
+    if (restaurantId) {
+
     fetchData();
 
     let channel: any = null;
@@ -25,7 +41,7 @@ export default function AdminPanelScreen({ navigation }: any) {
 
       channel = supabase
         .channel('admin_panel_channel')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, () => {
           fetchData();
         })
         .subscribe((status, err) => {
@@ -54,7 +70,9 @@ export default function AdminPanelScreen({ navigation }: any) {
       }
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  
+    }
+  }, [restaurantId]);
 
   const fetchData = async () => {
     setLoading(true);

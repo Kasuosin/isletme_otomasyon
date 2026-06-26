@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, FlatList, Platform, StatusBar, ActivityIndicator, Alert, Modal, Switch, Animated } from 'react-native';
 import { supabase } from '../lib/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface OrderItem {
   id: string;
@@ -17,12 +18,27 @@ interface KitchenOrder {
 }
 
 export default function KitchenPanelScreen({ navigation }: any) {
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [isStockModalVisible, setIsStockModalVisible] = useState(false);
   const [menuItems, setMenuItems] = useState<any[]>([]);
 
   useEffect(() => {
+    const loadRestaurantId = async () => {
+      const id = await AsyncStorage.getItem('restaurant_id');
+      if (id) {
+        setRestaurantId(id);
+      } else {
+        Alert.alert('Hata', 'Restoran bilgisi bulunamadı. Lütfen tekrar giriş yapın.');
+      }
+    };
+    loadRestaurantId();
+  }, []);
+
+  useEffect(() => {
+    if (restaurantId) {
+
     fetchKitchenOrders();
     fetchMenuItems();
 
@@ -36,13 +52,13 @@ export default function KitchenPanelScreen({ navigation }: any) {
 
       channel = supabase
         .channel('kitchen_orders_channel')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, (payload) => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, (payload) => {
           fetchKitchenOrders();
           if (payload.new.status === 'pending') {
             Alert.alert('🔔 YENİ SİPARİŞ GELDİ!', `Masa ${payload.new.table_no} sipariş gönderdi, mutfak başına!`);
           }
         })
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, (payload) => {
           fetchKitchenOrders();
           if (payload.new.status === 'pending' && payload.old?.status !== 'pending') {
             Alert.alert('🔔 YENİ SİPARİŞ EKLENDİ!', `Masa ${payload.new.table_no} ek sipariş gönderdi!`);
@@ -84,7 +100,9 @@ export default function KitchenPanelScreen({ navigation }: any) {
       }
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  
+    }
+  }, [restaurantId]);
 
   const fetchKitchenOrders = async () => {
     try {

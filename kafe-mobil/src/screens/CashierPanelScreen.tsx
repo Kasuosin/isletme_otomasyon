@@ -41,7 +41,7 @@ interface MenuItem {
   is_available: boolean;
 }
 
-export default function WaiterPanelScreen({ navigation }: any) {
+export default function CashierPanelScreen({ navigation }: any) {
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -56,6 +56,49 @@ export default function WaiterPanelScreen({ navigation }: any) {
   const [isTransferViewVisible, setIsTransferViewVisible] = useState(false);
   const [isSplitBillVisible, setIsSplitBillVisible] = useState(false);
   const [selectedSplitItems, setSelectedSplitItems] = useState<string[]>([]);
+  const [isPosSimulationActive, setIsPosSimulationActive] = useState(false);
+  const [isZReportVisible, setIsZReportVisible] = useState(false);
+  const [zReportData, setZReportData] = useState({
+    cash: 0,
+    credit_card: 0,
+    integrated_pos: 0,
+    online: 0,
+    total: 0
+  });
+
+  const fetchZReport = async () => {
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const { data, error } = await supabase
+        .from('orders').select('total_amount, payment_method').eq('restaurant_id', restaurantId)
+        .in('status', ['delivered', 'completed'])
+        .gte('created_at', today.toISOString());
+
+      if (error) throw error;
+
+      let totals = { cash: 0, credit_card: 0, integrated_pos: 0, online: 0, total: 0 };
+      
+      (data || []).forEach(order => {
+        const amount = Number(order.total_amount) || 0;
+        totals.total += amount;
+        
+        if (order.payment_method === 'cash') totals.cash += amount;
+        else if (order.payment_method === 'credit_card') totals.credit_card += amount;
+        else if (order.payment_method === 'INTEGRATED_POS') totals.integrated_pos += amount;
+        else if (order.payment_method === 'qr_pay' || order.payment_method === 'online' || order.payment_method === 'IYZICO') totals.online += amount;
+        else totals.cash += amount; // default to cash if unknown
+      });
+
+      setZReportData(totals);
+      setIsZReportVisible(true);
+    } catch (err) {
+      console.error('Error fetching Z report:', err);
+      Alert.alert('Hata', 'Gün sonu raporu alınırken bir hata oluştu.');
+    }
+  };
+
 
   // Menu/Cart states
   const [categories, setCategories] = useState<Category[]>([]);
@@ -95,7 +138,7 @@ export default function WaiterPanelScreen({ navigation }: any) {
       }
 
       channel = supabase
-        .channel('waiter_orders_channel')
+        .channel('cashier_orders_channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `restaurant_id=eq.${restaurantId}` }, (payload) => {
           console.log('Supabase Orders Event (Waiter):', payload);
           fetchOrders();
@@ -104,11 +147,11 @@ export default function WaiterPanelScreen({ navigation }: any) {
           }
         })
         .subscribe((status, err) => {
-          console.log('Waiter Orders Channel Status:', status);
-          if (err) console.error('Waiter Orders Channel Error:', err);
+          console.log('Cashier Orders Channel Status:', status);
+          if (err) console.error('Cashier Orders Channel Error:', err);
 
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.log('Waiter channel disconnected, attempting to reconnect...');
+            console.log('Cashier channel disconnected, attempting to reconnect...');
             clearTimeout(reconnectTimer);
             reconnectTimer = setTimeout(() => {
               setupRealtime();
@@ -360,7 +403,7 @@ export default function WaiterPanelScreen({ navigation }: any) {
     }
   };
 
-  const performCheckout = async (method: 'cash' | 'credit_card', targetOrderId: string) => {
+  const performCheckout = async (method: 'cash' | 'credit_card' | 'INTEGRATED_POS', targetOrderId: string, successMessage?: string) => {
     try {
       const { error } = await supabase
         .from('orders')
@@ -380,10 +423,18 @@ export default function WaiterPanelScreen({ navigation }: any) {
         console.error('Fallback update de basarisiz oldu:', fallbackErr);
       }
     } finally {
-      Alert.alert('Başarılı', 'Ödeme alındı ve hesap başarıyla kapatıldı.');
+      Alert.alert('Başarılı', successMessage || 'Ödeme alındı ve hesap başarıyla kapatıldı.');
       closeModal();
       fetchOrders(); 
     }
+  };
+
+  const simulateIntegratedPOS = (orderId: string) => {
+    setIsPosSimulationActive(true);
+    setTimeout(() => {
+      setIsPosSimulationActive(false);
+      performCheckout('INTEGRATED_POS', orderId, 'POS Tahsilatı Başarılı! Onay Kodu: #8542');
+    }, 3000);
   };
 
   const handleCheckoutPress = (orderId: string) => {
@@ -392,7 +443,8 @@ export default function WaiterPanelScreen({ navigation }: any) {
       "Ödeme yöntemini seçin:",
       [
         { text: "Nakit", onPress: () => performCheckout('cash', orderId) },
-        { text: "Kredi Kartı", onPress: () => performCheckout('credit_card', orderId) },
+        { text: "Manuel POS", onPress: () => performCheckout('credit_card', orderId) },
+        { text: "Fiziki POS'a Gönder", onPress: () => simulateIntegratedPOS(orderId) },
         { text: "İptal", style: "cancel" }
       ]
     );
@@ -674,14 +726,20 @@ export default function WaiterPanelScreen({ navigation }: any) {
                 
                 {!isDiscountViewVisible && !isReceiptViewVisible && !isTransferViewVisible && !isSplitBillVisible && (
                   <>
-                    
+                    <TouchableOpacity style={styles.receiptBtn} onPress={() => setIsReceiptViewVisible(true)}>
+                      <Text style={styles.receiptBtnText}>📄 Adisyon Önizle</Text>
+                    </TouchableOpacity>
                     <View style={[styles.modalActions, { marginTop: 10 }]}>
-                      <TouchableOpacity style={styles.addBtn} onPress={openMenuModal}>
-                        <Text style={styles.addBtnText}>+ Ekle</Text>
+                      
+                      <TouchableOpacity style={[styles.discountModeBtn, {backgroundColor: '#3b82f6', flex: 1, marginHorizontal: 5}]} onPress={() => setIsSplitBillVisible(true)}>
+                        <Text style={styles.discountModeBtnText}>💳 Böl</Text>
                       </TouchableOpacity>
-                      
-                      
-                      
+                      <TouchableOpacity style={[styles.discountModeBtn, {flex: 1}]} onPress={() => setIsDiscountViewVisible(true)}>
+                        <Text style={styles.discountModeBtnText}>% İsk</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.checkoutBtn} onPress={() => handleCheckoutPress(order.id)}>
+                        <Text style={styles.checkoutBtnText}>Kapat</Text>
+                      </TouchableOpacity>
                     </View>
                   </>
                 )}
@@ -691,9 +749,7 @@ export default function WaiterPanelScreen({ navigation }: any) {
                 <View style={styles.emptyTableWrapper}>
                   <Text style={styles.emptyTableText}>Bu masa şu an boş.</Text>
                 </View>
-                <TouchableOpacity style={styles.createOrderBtn} onPress={openMenuModal}>
-                  <Text style={styles.createOrderBtnText}>Sipariş Oluştur</Text>
-                </TouchableOpacity>
+                
               </View>
             )}
           </View>
@@ -796,6 +852,65 @@ export default function WaiterPanelScreen({ navigation }: any) {
   };
 
 
+  const renderPosSimulationModal = () => {
+    return (
+      <Modal visible={isPosSimulationActive} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.posSimulationContent}>
+            <ActivityIndicator size="large" color="#3b82f6" style={{ marginBottom: 20 }} />
+            <Text style={styles.posSimulationTitle}>POS Cihazına Bağlanılıyor...</Text>
+            <Text style={styles.posSimulationDesc}>Tutar Gönderiliyor, lütfen bekleyiniz.</Text>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+    const renderZReportModal = () => {
+    return (
+      <Modal visible={isZReportVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.zReportContent}>
+            <View style={styles.zReportHeader}>
+              <Text style={styles.zReportTitle}>Gün Sonu Raporu (Z Raporu)</Text>
+              <Text style={styles.zReportSubtitle}>{new Date().toLocaleDateString('tr-TR')} Tarihli Cirolar</Text>
+            </View>
+
+            <View style={styles.zReportBody}>
+              <View style={styles.zReportRow}>
+                <Text style={styles.zReportLabel}>💵 Nakit Tahsilat:</Text>
+                <Text style={styles.zReportValue}>₺{zReportData.cash.toFixed(2)}</Text>
+              </View>
+              <View style={styles.zReportRow}>
+                <Text style={styles.zReportLabel}>💳 Manuel POS:</Text>
+                <Text style={styles.zReportValue}>₺{zReportData.credit_card.toFixed(2)}</Text>
+              </View>
+              <View style={styles.zReportRow}>
+                <Text style={styles.zReportLabel}>📡 Entegre POS:</Text>
+                <Text style={styles.zReportValue}>₺{zReportData.integrated_pos.toFixed(2)}</Text>
+              </View>
+              <View style={styles.zReportRow}>
+                <Text style={styles.zReportLabel}>🌍 Online / QR Ödeme:</Text>
+                <Text style={styles.zReportValue}>₺{zReportData.online.toFixed(2)}</Text>
+              </View>
+              
+              <View style={styles.zReportDivider} />
+              
+              <View style={styles.zReportTotalRow}>
+                <Text style={styles.zReportTotalLabel}>GENEL TOPLAM:</Text>
+                <Text style={styles.zReportTotalValue}>₺{zReportData.total.toFixed(2)}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.zReportCloseBtn} onPress={() => setIsZReportVisible(false)}>
+              <Text style={styles.zReportCloseBtnText}>Kapat</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const renderTable = ({ item: tableNo }: { item: string }) => {
     const order = getTableOrder(tableNo);
     const isOccupied = !!order;
@@ -832,7 +947,7 @@ export default function WaiterPanelScreen({ navigation }: any) {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <Text style={styles.title}>Garson Paneli</Text>
+        <Text style={styles.title}>Kasa Paneli</Text>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <Text style={styles.logoutText}>Çıkış Yap</Text>
         </TouchableOpacity>
@@ -852,6 +967,10 @@ export default function WaiterPanelScreen({ navigation }: any) {
         ))}
       </View>
 
+      <TouchableOpacity onPress={fetchZReport} style={styles.zReportMainBtn}>
+        <Text style={styles.zReportMainBtnText}>📊 Gün Sonu Raporu (Z Raporu)</Text>
+      </TouchableOpacity>
+
       <FlatList
         data={filteredTables}
         keyExtractor={item => item}
@@ -862,7 +981,9 @@ export default function WaiterPanelScreen({ navigation }: any) {
       />
 
       {renderTableDetailsModal()}
-      {renderMenuModal()}
+      {renderPosSimulationModal()}
+      {renderZReportModal()}
+      
     </SafeAreaView>
   );
 }
@@ -1450,6 +1571,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 14,
   },
+  zReportCloseBtnText: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  zReportMainBtn: {
+    backgroundColor: '#4f46e5',
+    marginHorizontal: 15,
+    marginBottom: 10,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  zReportMainBtnText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
   transferBtn: {
     backgroundColor: '#e2e8f0',
     paddingHorizontal: 12,
@@ -1500,5 +1644,105 @@ const styles = StyleSheet.create({
   transferOptionTextOccupied: {
     color: '#d97706',
     fontWeight: 'bold',
+  },
+  posSimulationContent: {
+    backgroundColor: '#ffffff',
+    padding: 30,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  posSimulationTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0f172a',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  posSimulationDesc: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  zReportContent: {
+    backgroundColor: '#ffffff',
+    width: '90%',
+    borderRadius: 24,
+    padding: 24,
+    maxHeight: '80%',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+  },
+  zReportHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 15,
+  },
+  zReportTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0f172a',
+    marginBottom: 5,
+  },
+  zReportSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  zReportBody: {
+    marginBottom: 20,
+  },
+  zReportRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8fafc',
+  },
+  zReportLabel: {
+    fontSize: 16,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  zReportValue: {
+    fontSize: 16,
+    color: '#0f172a',
+    fontWeight: 'bold',
+  },
+  zReportDivider: {
+    height: 2,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 15,
+  },
+  zReportTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  zReportTotalLabel: {
+    fontSize: 18,
+    color: '#0f172a',
+    fontWeight: '900',
+  },
+  zReportTotalValue: {
+    fontSize: 24,
+    color: '#10b981',
+    fontWeight: '900',
+  },
+  zReportCloseBtn: {
+    backgroundColor: '#0f172a',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
   },
 });
