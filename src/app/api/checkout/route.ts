@@ -5,10 +5,11 @@ import { createCheckoutForm } from '@/utils/iyzico';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { table_no, amount, cart } = body;
+    const { tableNo, amount, cart, restaurantId } = body;
+    const table_no = tableNo; // backward compatibility with existing code
 
-    if (!table_no || !cart || cart.length === 0) {
-      return NextResponse.json({ error: 'Eksik parametreler (table_no veya cart)' }, { status: 400 });
+    if (!table_no || !cart || cart.length === 0 || !restaurantId) {
+      return NextResponse.json({ error: 'Eksik parametreler (table_no, cart veya restaurantId)' }, { status: 400 });
     }
 
     // Canlı domain (Vercel vb.) veya tünel URL'sini al, yoksa origin'e dön.
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       .from('orders')
       .select('id, total_amount')
       .eq('table_no', table_no)
+      .eq('restaurant_id', restaurantId)
       .in('status', ['pending', 'preparing', 'ready'])
       .order('created_at', { ascending: true })
       .limit(1)
@@ -43,6 +45,7 @@ export async function POST(request: Request) {
 
     if (!currentOrderId) {
       const insertData: any = {
+        restaurant_id: restaurantId,
         table_no: table_no,
         status: 'pending', 
         total_amount: amount,
