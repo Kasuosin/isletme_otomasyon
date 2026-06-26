@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       // Kullanıcıyı menüye başarı mesajıyla geri yönlendir
       // Origin URL'yi oluştur. Request url'sinden host bilgisini alalım.
       const url = new URL(request.url);
-      const redirectUrl = `${url.protocol}//${url.host}/menu?table=${tableNo}&payment=success`;
+      const redirectUrl = `${url.protocol}//${url.host}/menu?table=${tableNo}&payment=success&amount=${result.paidPrice || 0}`;
       return NextResponse.redirect(redirectUrl, 303);
 
     } else {

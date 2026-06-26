@@ -14,6 +14,7 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
   const tableNo = searchParams.get('table');
   const paymentStatus = searchParams.get('payment');
   const paymentReason = searchParams.get('reason');
+  const paymentAmount = searchParams.get('amount');
   
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [displayCategory, setDisplayCategory] = useState<string | null>(null);
@@ -516,7 +517,7 @@ export default function MenuClient({ categories, menuItems }: { categories: Cate
                   <p className="text-gray-500 text-md mt-2">Siparişiniz alındı ve mutfağa iletildi.</p>
                   <div className="mt-4 bg-gray-50 rounded-lg p-3 w-full border border-gray-100 border-dashed">
                     <p className="text-xs text-gray-400 uppercase font-bold tracking-wider">İşlem Özeti</p>
-                    <p className="text-lg font-black text-gray-800">{totalAmount} ₺</p>
+                    <p className="text-lg font-black text-gray-800">{paymentAmount ? `${paymentAmount} ₺` : `${totalAmount} ₺`}</p>
                   </div>
                 </div>
               )}
