@@ -166,9 +166,10 @@ export default function MenuClient({ categories, menuItems, restaurantId }: { ca
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          table_no: tableNo,
+          tableNo: tableNo,
           amount: totalAmount,
-          cart: cart
+          cart: cart,
+          restaurantId: restaurantId
         })
       });
 
